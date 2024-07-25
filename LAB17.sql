@@ -3,7 +3,7 @@ USE sakila;
 
 --Step 1: Create a View
 --First, create a view that summarizes rental information for each customer. The view should include the customer's ID, name, email address, and total number of rentals (rental_count).
-CREATE VIEW CSR AS
+CREATE VIEW customer_rental_summary AS
 SELECT cu.customer_id, CONCAT(cu.first_name, ' ', cu.last_name) AS name, cu.email, COUNT(r.rental_id) AS rental_count
 FROM customer AS cu
 JOIN rental as r
@@ -12,7 +12,7 @@ GROUP BY cu.customer_id;
 --Step 2: Create a Temporary Table
 --Next, create a Temporary Table that calculates the total amount paid by each customer (total_paid). The Temporary Table should use the rental summary view created in Step 1 to join with the payment table and calculate the total amount paid by each customer.
 
-CREATE TEMPORARY TABLE Total_paid
+CREATE TEMPORARY TABLE customer_payment_summary
 SELECT cs.customer_id, SUM(pa.amount) AS total_paid_amount
 FROM csr AS cs
 JOIN payment as pa
@@ -45,30 +45,24 @@ SELECT
 FROM 
     cte_csr AS ct
 JOIN 
-    Total_paid AS tp ON ct.customer_id = tp.customer_id;
+    customer_payment_summary AS tp ON ct.customer_id = tp.customer_id;
 
 --Next, using the CTE, create the query to generate the final customer summary report, which should include: customer name, email, rental_count, total_paid and average_payment_per_rental, this last column is a derived column from total_paid and rental_count.
 
-WITH cte_csr AS (
+WITH customer_summary_report AS (
     SELECT 
-        cu.customer_id, 
-        CONCAT(cu.first_name, ' ', cu.last_name) AS name, 
-        cu.email, 
-        COUNT(r.rental_id) AS rental_count
+        crs.name,
+        crs.email,
+        crs.rental_count,
+        cps.total_paid_amount
     FROM 
-        customer AS cu
-    JOIN 
-        rental AS r ON cu.customer_id = r.customer_id
-    GROUP BY 
-        cu.customer_id, cu.first_name, cu.last_name, cu.email
+        customer_rental_summary AS crs
+        JOIN customer_payment_summary AS cps ON crs.customer_id = cps.customer_id
 )
-SELECT
-    ct.name,
-    ct.email,
-    ct.rental_count, 
-    tp.total_paid_amount,
-    ROUND(tp.total_paid_amount / NULLIF(ct.rental_count, 0), 2) AS average_payment_per_rental
+SELECT 
+    *,
+    total_paid_amount / rental_count AS average_payment_per_rental
 FROM 
-    cte_csr AS ct
-JOIN 
-    Total_paid AS tp ON ct.customer_id = tp.customer_id;
+    customer_summary_report
+ORDER BY 
+    rental_count DESC;
